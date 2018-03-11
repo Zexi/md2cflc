@@ -11,7 +11,7 @@ $ npm i markdown2confluence -g
 # Installation
 
 ```bash
-$ go install github.com/zexi/md2cflc
+$ go get github.com/zexi/md2cflc
 ```
 
 # Usage
@@ -23,3 +23,11 @@ $ md2cflc ./README.md
 # update your confluence wiki page by pageid
 $ md2cflc -wiki https://wiki.xxx.com -u username -p passwd -pageid 12345 ./README.md 
 ```
+
+# FAQ
+
+## How to get page id?
+
+You can find the page id when you edit it.
+
+![Find pageId](./img/pageId.png)
