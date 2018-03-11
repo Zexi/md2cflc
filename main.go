@@ -81,7 +81,7 @@ func doUpdate(url, username, passwd, pageId, content string) (err error) {
 	}
 
 	newPage := newPageByOldPage(oldPage, content)
-	ret, err := wiki.UpdateContent(newPage)
+	_, err = wiki.UpdateContent(newPage)
 	if err != nil {
 		return
 	}
