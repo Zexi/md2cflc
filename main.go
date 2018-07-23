@@ -1,117 +1,175 @@
 package main
 
 import (
-	"flag"
-	"fmt"
-	"log"
-	"os"
-	"os/exec"
-
-	"github.com/seppestas/go-confluence"
+        "flag"
+        "fmt"
+        "git.yunion.io/et/go-confluence"
+        "log"
+        "os"
+        "os/exec"
+        "strconv"
 )
 
 var (
-	username      = flag.String("u", "", "Confluence username")
-	passwd        = flag.String("p", "", "Confluence password")
-	pageId        = flag.String("pageid", "", "Confluence page ID to update")
-	confluenceURL = flag.String("wiki", "", "Confluence wiki http URL")
+        username      = flag.String("u", "", "Confluence username")
+        passwd        = flag.String("p", "", "Confluence password")
+        pageId        = flag.String("pageid", "", "Confluence page ID to update")
+        confluenceURL = flag.String("wiki", "", "Confluence wiki http URL")
+        parentID      = flag.Int("parentid", 0, "parent id of a page")
+        title         = flag.String("title", "", "title of a new page")
+        space         = flag.String("space", "", "page Space in the wiki")
 )
 
 func optionParse() {
-	flag.Parse()
+        flag.Parse()
 }
 
 func markdownFile() string {
-	files := flag.Args()
-	if len(files) == 0 {
-		fmt.Printf("Please specify markdown file.\n")
-		os.Exit(1)
-	}
-	f := files[0]
-	if _, err := os.Stat(f); err != nil {
-		log.Fatalf("markdownFile: %v", err)
-	}
-	return f
+        files := flag.Args()
+        if len(files) == 0 {
+                fmt.Printf("Please specify markdown file.\n")
+                os.Exit(1)
+        }
+        f := files[0]
+        if _, err := os.Stat(f); err != nil {
+                log.Fatalf("markdownFile: %v", err)
+        }
+        return f
 }
 
 func Markdown2ConfluenceWiki(file string) (string, error) {
-	helper := "markdown2confluence"
-	cmd := exec.Command(helper, file)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
+        helper := "markdown2confluence"
+        cmd := exec.Command(helper, file)
+        out, err := cmd.Output()
+        if err != nil {
+                return "", err
+        }
+        return string(out), nil
 }
 
 func updateCheck() (err error) {
-	if *username == "" || *passwd == "" {
-		err = fmt.Errorf("'username' and 'password' must provided")
-		return
-	}
-	if *pageId == "" {
-		err = fmt.Errorf("'pageId' not input")
-		return
-	}
-	if *confluenceURL == "" {
-		err = fmt.Errorf("confluence wiki URL not input")
-		return
-	}
-	return
+        if *username == "" || *passwd == "" {
+                err = fmt.Errorf("'username' and 'password' must provided")
+                return
+        }
+        if *pageId == "" && *parentID == 0 {
+                err = fmt.Errorf("'pageId' and 'parentID' can not be both empty")
+                return
+        }
+
+        if *pageId != "" && *parentID > 0 {
+                err = fmt.Errorf("please provide pageId OR parentID. Do not provid BOTH")
+                return
+        }
+
+        if *parentID > 0 && *space == "" {
+                err = fmt.Errorf("please provide SPACE key when you provided parentID")
+                return
+        }
+
+        if *confluenceURL == "" {
+                err = fmt.Errorf("confluence wiki URL not input")
+                return
+        }
+        return
 }
 
 func newPageByOldPage(oldPage *confluence.Content, content string) *confluence.Content {
-	newPage := *oldPage
-	newPage.Version.Number = oldPage.Version.Number + 1
-	newPage.Body.Storage.Value = content
-	newPage.Body.Storage.Representation = "wiki"
-	return &newPage
+        newPage := *oldPage
+        newPage.Version.Number = oldPage.Version.Number + 1
+        newPage.Body.Storage.Value = content
+        newPage.Body.Storage.Representation = "wiki"
+        return &newPage
+}
+
+func newPage4Create(oldPage *confluence.Content) *confluence.ContentCreate {
+        newPage := &confluence.ContentCreate{
+                Space:     confluence.Space{""},
+                Ancestors: make([]confluence.Ancestor, 0),
+                Content:   *oldPage,
+        }
+        return newPage
 }
 
 func doUpdate(url, username, passwd, pageId, content string) (err error) {
-	auth := confluence.BasicAuth(username, passwd)
-	wiki, err := confluence.NewWiki(url, auth)
-	if err != nil {
-		return
-	}
+        auth := confluence.BasicAuth(username, passwd)
+        wiki, err := confluence.NewWiki(url, auth)
+        if err != nil {
+                return
+        }
 
-	oldPage, err := wiki.GetContent(pageId, []string{"version"})
-	if err != nil {
-		return
-	}
+        oldPage, err := wiki.GetContent(pageId, []string{"version"})
+        if err != nil {
+                return
+        }
+        newPage := newPageByOldPage(oldPage, content)
+        _, err = wiki.UpdateContent(newPage)
+        if err != nil {
+                return
+        }
+        return
+}
 
-	newPage := newPageByOldPage(oldPage, content)
-	_, err = wiki.UpdateContent(newPage)
-	if err != nil {
-		return
-	}
-	return
+func doCreate(url, username, passwd, title, content, space string, parentID int) (err error) {
+
+        auth := confluence.BasicAuth(username, passwd)
+        wiki, err := confluence.NewWiki(url, auth)
+        if err != nil {
+                return
+        }
+
+        oldPage, err := wiki.GetContent(strconv.Itoa(parentID), []string{"version"})
+        if err != nil {
+                return
+        }
+
+        _newPage := newPageByOldPage(oldPage, content)
+        newPage := newPage4Create(_newPage)
+        newPage.Version.Number = 1
+        newPage.Title = title
+        // newPage.Ancestors = append(newPage.Ancestors, confluence.Ancestor{parentID})
+
+        ans := confluence.Ancestor{parentID}
+        newPage.Ancestors = append(newPage.Ancestors, ans)
+        newPage.Space.Key = space
+
+        _, err = wiki.CreateContent(newPage)
+        if err != nil {
+                return
+        }
+        return
 }
 
 func UpdateContent(content string) error {
-	err := updateCheck()
-	if err != nil {
-		return err
-	}
-
-	return doUpdate(*confluenceURL, *username, *passwd, *pageId, content)
+        err := updateCheck()
+        if err != nil {
+                return err
+        }
+        if *pageId != "" {
+                fmt.Println("do update")
+                return doUpdate(*confluenceURL, *username, *passwd, *pageId, content)
+        } else if *parentID > 0 && *space != "" {
+                fmt.Println("do create")
+                return doCreate(*confluenceURL, *username, *passwd, *title, content, *space, *parentID)
+        }
+        return nil
 }
 
 func main() {
-	optionParse()
+        optionParse()
 
-	wikiContent, err := Markdown2ConfluenceWiki(markdownFile())
-	if err != nil {
-		log.Fatalf("Convert markdown to wiki: %v", err)
-	}
+        wikiContent, err := Markdown2ConfluenceWiki(markdownFile())
+        if err != nil {
+                log.Fatalf("Convert markdown to wiki: %v", err)
+        }
 
-	if len(*confluenceURL) == 0 {
-		fmt.Printf("%s", wikiContent)
-		os.Exit(0)
-	}
+        if len(*confluenceURL) == 0 {
+                fmt.Printf("%s", wikiContent)
+                os.Exit(0)
+        }
 
-	err = UpdateContent(wikiContent)
-	if err != nil {
-		log.Fatalf("Update err: %v", err)
-	}
+        err = UpdateContent(wikiContent)
+        if err != nil {
+                log.Fatalf("Update err: %v", err)
+        }
 }
