@@ -11,7 +11,7 @@ $ npm i markdown2confluence -g
 # Installation
 
 ```bash
-$ go get github.com/zexi/md2cflc
+$ go get git.yunion.io/et/md2cflc
 ```
 
 # Usage
