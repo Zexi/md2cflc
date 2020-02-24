@@ -23,7 +23,16 @@ var (
 	parentID      = flag.Int("parentid", 0, "parent id of a page")
 	title         = flag.String("title", "", "title of a new page")
 	space         = flag.String("space", "", "page Space in the wiki")
+	verbose       = flag.Bool("verbose", false, "enable debug mode")
 )
+
+func Debug(data []byte, err error) {
+	if err == nil {
+		fmt.Printf("%s\n\n", data)
+	} else {
+		fmt.Printf("%s\n\n", err)
+	}
+}
 
 func optionParse() {
 	flag.Parse()
@@ -134,7 +143,7 @@ func doUpdate(url, username, passwd, pageId, content string) (err error) {
 		return
 	}
 	newPage := newPageByOldPage(oldPage, content)
-	_, err = wiki.UpdateContent(newPage)
+	_, err = wiki.UpdateContent(newPage, *verbose)
 	if err != nil {
 		return
 	}
@@ -164,7 +173,7 @@ func doCreate(url, username, passwd, title, content, space string, parentID int)
 	newPage.Ancestors = append(newPage.Ancestors, ans)
 	newPage.Space.Key = space
 
-	_, err = wiki.CreateContent(newPage)
+	_, err = wiki.CreateContent(newPage, *verbose)
 	if err != nil {
 		return
 	}
