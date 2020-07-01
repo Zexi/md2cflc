@@ -7,12 +7,12 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"strconv"
 	"strings"
 
-	"git.yunion.io/et/go-confluence"
+	"md2cflc/confluence"
+	"md2cflc/render"
 )
 
 var (
@@ -24,6 +24,7 @@ var (
 	title         = flag.String("title", "", "title of a new page")
 	space         = flag.String("space", "", "page Space in the wiki")
 	verbose       = flag.Bool("verbose", false, "enable debug mode")
+	noEscape      = flag.Bool("no-escape", false, "not escape curly brackets")
 )
 
 func Debug(data []byte, err error) {
@@ -57,8 +58,11 @@ func escapeCurlyBrackets(filename string) string {
 	reader := bufio.NewReader(fin)
 	ctt, _ := ioutil.ReadAll(reader)
 
-	content := strings.Replace(string(ctt), "{", `\\{`, -1)
-	content = strings.Replace(content, "}", `\\}`, -1)
+	content := string(ctt)
+	if !*noEscape {
+		content := strings.Replace(content, "{", `\\{`, -1)
+		content = strings.Replace(content, "}", `\\}`, -1)
+	}
 
 	bn := path.Base(filename)
 	tmpFileName := "/tmp/" + bn + ".tmp"
@@ -78,13 +82,12 @@ func Markdown2ConfluenceWiki(file string) (string, error) {
 	if strings.HasSuffix(file, ".tmp") {
 		defer os.Remove(file)
 	}
-	helper := "markdown2confluence"
-	cmd := exec.Command(helper, file)
-	out, err := cmd.Output()
+	markdownContents, err := ioutil.ReadFile(file)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read file %s error: %v", file, err)
 	}
-	return string(out), nil
+	output := render.Run(markdownContents)
+	return string(output), nil
 }
 
 func updateCheck() (err error) {
@@ -208,8 +211,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	err = UpdateContent(wikiContent)
-	if err != nil {
+	if err := UpdateContent(wikiContent); err != nil {
 		log.Fatalf("Update err: %v", err)
 	}
 }
