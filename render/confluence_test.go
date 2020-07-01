@@ -136,6 +136,11 @@ func TestList(t *testing.T) {
 			expected:   "* list1\n* list2\n** list 3\n** list 4\n* list 5\n\n",
 			extensions: bf.CommonExtensions,
 		},
+		{
+			input:      "* list1\n* list2\n    * list 3\n        * list 4\n* list 5\n",
+			expected:   "* list1\n* list2\n** list 3\n*** list 4\n* list 5\n\n",
+			extensions: bf.CommonExtensions,
+		},
 	}
 
 	doTest(t, tdt)
